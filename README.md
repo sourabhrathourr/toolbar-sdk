@@ -43,7 +43,7 @@ This will start both:
 ### Basic Implementation
 
 ```tsx
-import { Toolbar } from '@toolbar/sdk';
+import { Toolbar } from '@betterstacks/toolbar-sdk';
 
 function App() {
   return (
@@ -57,7 +57,7 @@ function App() {
 ### Custom Actions
 
 ```tsx
-import { Toolbar } from '@toolbar/sdk';
+import { Toolbar } from '@betterstacks/toolbar-sdk';
 import { Sparkles, MessageCircle, Settings } from 'lucide-react';
 
 function App() {

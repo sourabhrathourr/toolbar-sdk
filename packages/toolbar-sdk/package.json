@@ -1,11 +1,25 @@
 {
-  "name": "@toolbar/sdk",
+  "name": "@betterstacks/toolbar-sdk",
   "version": "0.1.0",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "sideEffects": false,
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/betterstacks/toolbar-sdk.git"
+  },
+  "keywords": [
+    "toolbar",
+    "react",
+    "ui",
+    "floating",
+    "draggable"
+  ],
   "files": [
     "dist/**"
   ],
@@ -13,7 +27,11 @@
     "build": "tsup src/index.tsx --format esm,cjs --dts --external react --tsconfig ./tsconfig.json",
     "dev": "tsup src/index.tsx --format esm,cjs --watch --dts --external react",
     "lint": "eslint src/",
-    "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist"
+    "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist",
+    "prepublishOnly": "npm run build",
+    "preversion": "npm run lint",
+    "version": "npm run build && git add -A dist",
+    "postversion": "git push && git push --tags"
   },
   "devDependencies": {
     "@types/react": "^19",

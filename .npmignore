@@ -1,0 +1,19 @@
+# Source
+src/
+
+# Development
+tsconfig.json
+.turbo
+.eslintrc
+.prettierrc
+*.log
+
+# Tests
+__tests__/
+coverage/
+*.test.ts
+*.test.tsx
+
+# Build configs
+rollup.config.js
+tsup.config.ts 
