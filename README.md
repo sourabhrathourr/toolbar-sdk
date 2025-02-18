@@ -10,6 +10,7 @@ This monorepo contains a customizable floating toolbar SDK for web applications 
 - 💾 Persistent position storage
 - 🌟 Smooth animations and transitions
 - 📱 Responsive and draggable interface
+- ⚡️ Framework agnostic (works with React and Next.js)
 
 ## Project Structure
 
@@ -36,11 +37,22 @@ bun run dev
 
 This will start both:
 - The SDK in watch mode
-- The demo dashboard at [http://localhost:3000/test](http://localhost:3000/test)
+- The demo dashboard at [http://localhost:3000](http://localhost:3000)
 
 ## Usage
 
+### Framework Compatibility
+
+The toolbar works with both React and Next.js applications:
+
+- **React**: Import and use directly
+- **Next.js**: Use with dynamic import and `ssr: false`
+
+See framework-specific examples below.
+
 ### Basic Implementation
+
+#### React
 
 ```tsx
 import { Toolbar } from '@betterstacks/toolbar-sdk';
@@ -51,6 +63,25 @@ function App() {
       <Toolbar />
     </div>
   );
+}
+```
+
+#### Next.js
+
+```tsx
+'use client';
+
+import dynamic from 'next/dynamic';
+import type { ToolbarProps } from '@betterstacks/toolbar-sdk';
+
+const Toolbar = dynamic<ToolbarProps>(
+  () => import('@betterstacks/toolbar-sdk').then(mod => mod.Toolbar),
+  { ssr: false }
+);
+
+// Use in your component
+export function MyComponent() {
+  return <Toolbar />;
 }
 ```
 

@@ -1,10 +1,13 @@
 # Changelog
 
-## [0.1.1] - 2024-03-19
+## [0.1.6] - 2024-03-19
+### Added
+- Added Next.js integration guide
+- Added framework-specific documentation
 ### Fixed
-- Updated repository URL to correct GitHub location
+- Fixed SSR issues in Next.js applications
 
-## [0.1.0] - 2024-03-19
+## [0.1.5] - 2024-03-19
 ### Added
 - Initial release
 - Draggable toolbar with hotspot snapping

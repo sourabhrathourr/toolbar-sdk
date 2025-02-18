@@ -16,4 +16,10 @@
 5. Push git changes
    ```bash
    git push && git push --tags
+   ```
+4. Test the demo app
+   ```bash
+   cd packages/dashboard
+   bun run dev
+   # Visit http://localhost:3000
    ``` 

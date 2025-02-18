@@ -24,6 +24,8 @@ bun add @betterstacks/toolbar-sdk
 
 ## Quick Start
 
+### React Applications
+
 ```tsx
 import { Toolbar } from '@betterstacks/toolbar-sdk';
 
@@ -35,6 +37,32 @@ function App() {
   );
 }
 ```
+
+### Next.js Applications
+
+For Next.js applications, you need to use dynamic imports to disable SSR for the toolbar:
+
+```tsx
+'use client';
+
+import dynamic from 'next/dynamic';
+import type { ToolbarProps } from '@betterstacks/toolbar-sdk';
+
+const Toolbar = dynamic<ToolbarProps>(
+  () => import('@betterstacks/toolbar-sdk').then(mod => mod.Toolbar),
+  { ssr: false }
+);
+
+export function MyComponent() {
+  return (
+    <div>
+      <Toolbar />
+    </div>
+  );
+}
+```
+
+> **Note**: The toolbar needs to be client-side rendered because it uses browser APIs like `localStorage` and `window`. Using `dynamic` import with `ssr: false` ensures proper functionality in Next.js applications.
 
 ## Custom Actions
 
@@ -120,3 +148,8 @@ We welcome contributions! Please see our [contributing guide](https://github.com
 ## License
 
 MIT © [BetterStacks](https://github.com/sourabhrathourr) 
+
+Visit the demo:
+```bash
+http://localhost:3000
+``` 
