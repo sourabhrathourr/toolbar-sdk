@@ -1,6 +1,6 @@
 'use client';
 
-import { Toolbar } from '@toolbar/sdk';
+import { Toolbar } from '@betterstacks/toolbar-sdk';
 import { MessageCircle, Sparkles, Settings, FileText, Mail } from 'lucide-react';
 
 export default function TestPage() {
@@ -8,13 +8,13 @@ export default function TestPage() {
     <div className="min-h-screen p-8">
       <div className="max-w-3xl mx-auto">
         <h1 className="text-2xl font-bold mb-4">Toolbar SDK Demo</h1>
-        
+
         <div className="grid grid-cols-2 gap-8">
           {/* Default Toolbar */}
-          <div>
+          {/* <div>
             <h2 className="text-lg font-semibold mb-4">Default Toolbar</h2>
             <Toolbar />
-          </div>
+          </div> */}
 
           {/* Custom Toolbar with more buttons */}
           <div>
@@ -59,4 +59,4 @@ export default function TestPage() {
       </div>
     </div>
   );
-} 
+}

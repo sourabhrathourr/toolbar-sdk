@@ -58,9 +58,12 @@ logs
 .tmp
 
 # Build outputs
+packages/dashboard/dist/
+packages/dashboard/.next/
+packages/dashboard/out/
+# Build outputs should be ignored
+dist/
 packages/**/dist/
-packages/**/.next/
-packages/**/out/
 
 # Yarn
 .yarn/*

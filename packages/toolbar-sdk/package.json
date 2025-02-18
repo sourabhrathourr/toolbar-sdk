@@ -1,9 +1,14 @@
 {
   "name": "@betterstacks/toolbar-sdk",
-  "version": "0.1.0",
+  "version": "0.1.5",
+  "description": "A customizable floating toolbar SDK for React applications",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
+  "homepage": "https://github.com/sourabhrathourr/toolbar-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/sourabhrathourr/toolbar-sdk/issues"
+  },
   "sideEffects": false,
   "license": "MIT",
   "publishConfig": {
@@ -11,7 +16,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/betterstacks/toolbar-sdk.git"
+    "url": "git+https://github.com/sourabhrathourr/toolbar-sdk.git"
   },
   "keywords": [
     "toolbar",
@@ -29,8 +34,7 @@
     "lint": "eslint src/",
     "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist",
     "prepublishOnly": "npm run build",
-    "preversion": "npm run lint",
-    "version": "npm run build && git add -A dist",
+    "version": "npm run build && git add -f dist",
     "postversion": "git push && git push --tags"
   },
   "devDependencies": {
@@ -48,4 +52,4 @@
     "framer-motion": "^11.0.0",
     "lucide-react": "^0.350.0"
   }
-} 
+}

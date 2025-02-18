@@ -7,7 +7,13 @@ export type { ToolbarConfig };
 
 // CDN bundle entry
 if (typeof window !== 'undefined') {
-  (window as any).Toolbar = {
+  const win = window as unknown as Window & {
+    Toolbar: {
+      Toolbar: typeof Toolbar;
+      ToolbarProvider: typeof ToolbarProvider;
+    };
+  };
+  win.Toolbar = {
     Toolbar,
     ToolbarProvider,
   };

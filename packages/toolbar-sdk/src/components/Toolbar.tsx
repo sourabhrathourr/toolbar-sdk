@@ -254,15 +254,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 orientation === 'vertical'
                   ? getExpandDirection(
                       getNumericPosition(position.x, window.innerWidth),
-                      getNumericPosition(position.y, window.innerHeight),
-                      orientation
+                      getNumericPosition(position.y, window.innerHeight)
                     ).vertical === 'up'
                     ? 'bottom'
                     : 'top'
                   : getExpandDirection(
                       getNumericPosition(position.x, window.innerWidth),
-                      getNumericPosition(position.y, window.innerHeight),
-                      orientation
+                      getNumericPosition(position.y, window.innerHeight)
                     ).horizontal === 'left'
                   ? 'right'
                   : 'left',

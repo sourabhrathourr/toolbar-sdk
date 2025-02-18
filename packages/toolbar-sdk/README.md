@@ -1,0 +1,122 @@
+# @betterstacks/toolbar-sdk
+
+A customizable floating toolbar SDK for React applications. Create a draggable interface with customizable actions that snaps to predefined hotspots on the screen.
+
+
+## Features
+
+- 🎯 Snap-to-grid with 9 predefined hotspots
+- 🔄 Automatic orientation switching (horizontal/vertical)
+- 🎨 Customizable actions and icons
+- 💾 Persistent position storage
+- 🌟 Smooth animations and transitions
+- 📱 Responsive and draggable interface
+
+## Installation
+
+```bash
+npm install @betterstacks/toolbar-sdk
+# or
+yarn add @betterstacks/toolbar-sdk
+# or
+bun add @betterstacks/toolbar-sdk
+```
+
+## Quick Start
+
+```tsx
+import { Toolbar } from '@betterstacks/toolbar-sdk';
+
+function App() {
+  return (
+    <div>
+      <Toolbar />
+    </div>
+  );
+}
+```
+
+## Custom Actions
+
+```tsx
+import { Toolbar } from '@betterstacks/toolbar-sdk';
+import { Sparkles, MessageCircle, Settings } from 'lucide-react';
+
+function App() {
+  return (
+    <div>
+      <Toolbar
+        buttons={[
+          {
+            id: 'ai',
+            icon: <Sparkles size={16} />,
+            tooltip: 'AI Assistant',
+            onClick: () => console.log('AI clicked'),
+          },
+          {
+            id: 'chat',
+            icon: <MessageCircle size={16} />,
+            tooltip: 'Chat',
+            onClick: () => console.log('Chat clicked'),
+          },
+          {
+            id: 'settings',
+            icon: <Settings size={16} />,
+            tooltip: 'Settings',
+            onClick: () => console.log('Settings clicked'),
+          },
+        ]}
+        defaultIcon={<Sparkles size={16} />}
+      />
+    </div>
+  );
+}
+```
+
+## API Reference
+
+### Toolbar Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `buttons` | `ToolbarButton[]` | Default actions | Array of button configurations |
+| `defaultIcon` | `ReactNode` | `<Sparkles />` | Icon shown when toolbar is collapsed |
+| `className` | `string` | `''` | Additional CSS classes |
+
+### ToolbarButton
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `id` | `string` | Unique identifier for the button |
+| `icon` | `ReactNode` | Icon component to display |
+| `tooltip` | `string` | Tooltip text shown on hover |
+| `onClick` | `() => void` | Click handler for the button |
+
+## Behavior
+
+- The toolbar starts in a collapsed state with the default/first action icon
+- Hover to expand and show all actions
+- Drag to reposition
+- Automatically snaps to the nearest hotspot
+- Persists position between page reloads
+- Automatically switches between horizontal/vertical orientation based on position
+
+## Requirements
+
+- React 18 or higher
+- Modern browser support (uses CSS backdrop-filter)
+
+## Browser Support
+
+- Chrome/Edge ≥ 76
+- Firefox ≥ 70
+- Safari ≥ 9
+- iOS Safari ≥ 9
+
+## Contributing
+
+We welcome contributions! Please see our [contributing guide](https://github.com/sourabhrathourr/toolbar-sdk/blob/main/CONTRIBUTING.md) for details.
+
+## License
+
+MIT © [BetterStacks](https://github.com/sourabhrathourr) 

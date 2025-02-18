@@ -74,7 +74,6 @@ export const getInitialPosition = (): {
 export const getExpandDirection = (
   xPos: number,
   yPos: number,
-  currentOrientation: 'horizontal' | 'vertical'
 ) => {
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
