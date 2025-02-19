@@ -46,7 +46,7 @@ For Next.js applications, you need to use dynamic imports to disable SSR for the
 'use client';
 
 import dynamic from 'next/dynamic';
-import type { ToolbarProps } from '@betterstacks/toolbar-sdk';
+import type { ToolbarProps, ToolbarButton } from '@betterstacks/toolbar-sdk';
 
 const Toolbar = dynamic<ToolbarProps>(
   () => import('@betterstacks/toolbar-sdk').then(mod => mod.Toolbar),

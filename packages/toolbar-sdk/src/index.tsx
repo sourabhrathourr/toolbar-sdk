@@ -1,9 +1,21 @@
 import { Toolbar } from './components/Toolbar';
 import { ToolbarProvider, useToolbarContext } from './components/ToolbarProvider';
-import type { ToolbarConfig } from './types';
+import type { 
+  ToolbarConfig, 
+  ToolbarProps, 
+  ToolbarButton,
+  Position,
+  ActionButtonsType 
+} from './types';
 
 export { Toolbar, ToolbarProvider, useToolbarContext };
-export type { ToolbarConfig };
+export type { 
+  ToolbarConfig,
+  ToolbarProps,
+  ToolbarButton,
+  Position,
+  ActionButtonsType 
+};
 
 // CDN bundle entry
 if (typeof window !== 'undefined') {

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.7] - 2024-03-19
+### Added
+- Exported all necessary types (ToolbarProps, ToolbarButton, etc.)
+### Fixed
+- Fixed type export issues for Next.js applications
+
 ## [0.1.6] - 2024-03-19
 ### Added
 - Added Next.js integration guide
