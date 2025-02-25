@@ -62,13 +62,25 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   // Use buttons directly from props or default buttons
   const buttons = initialButtons || defaultButtons;
   
-  const pinnedButtons = buttons.filter(button => button.pinned);
-  const unpinnedButtons = buttons.filter(button => !button.pinned);
+  // Ensure the first button is always pinned
+  const processedButtons = buttons.map((button, index) => {
+    if (index === 0) {
+      // Force the first button to be pinned
+      return { ...button, pinned: true };
+    }
+    return button;
+  });
   
-  // Default to first button if no pinned buttons
+  const pinnedButtons = processedButtons.filter(button => button.pinned);
+  const unpinnedButtons = processedButtons.filter(button => !button.pinned);
+  
+  // Default to first button if no pinned buttons (should never happen now)
   const hasDefaultIcon = defaultIcon !== undefined;
   const hasPinnedButtons = pinnedButtons.length > 0;
-  const buttonToShow = hasPinnedButtons ? pinnedButtons[0] : buttons[0];
+  const buttonToShow = hasPinnedButtons ? pinnedButtons[0] : processedButtons[0];
+
+  // Track if mouse is currently over the toolbar
+  const isMouseOverRef = useRef(false);
 
   // Set toolbar position
   useEffect(() => {
@@ -82,35 +94,41 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     y.set(yPos);
   }, [position, x, y]);
 
-  // Clean up any timeouts
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      if (tooltipTimeoutRef.current) {
-        clearTimeout(tooltipTimeoutRef.current);
-      }
-      if (dragCooldownRef.current) {
-        clearTimeout(dragCooldownRef.current);
-      }
-    };
-  }, []);
-
-  // Handle drag interactions
+  // Handle drag interactions with improved cleanup
   useEffect(() => {
     if (isDragging) {
+      // Clear all interaction states when dragging
       setIsExpanded(false);
       setHoveredButtonId(null);
       setTooltipLocked(false);
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      if (tooltipTimeoutRef.current) {
-        clearTimeout(tooltipTimeoutRef.current);
-      }
+      
+      // Clear all timeouts
+      clearAllTimeouts();
     }
   }, [isDragging]);
+
+  // Function to clear all timeouts in one place
+  const clearAllTimeouts = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    if (tooltipTimeoutRef.current) {
+      clearTimeout(tooltipTimeoutRef.current);
+      tooltipTimeoutRef.current = null;
+    }
+    if (dragCooldownRef.current) {
+      clearTimeout(dragCooldownRef.current);
+      dragCooldownRef.current = null;
+    }
+  };
+
+  // Clean up any timeouts
+  useEffect(() => {
+    return () => {
+      clearAllTimeouts();
+    };
+  }, []);
 
   // Determine if toolbar is near bottom of screen
   const isNearBottom = () => {
@@ -199,32 +217,19 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     setPosition(newPosition);
     setIsDragging(false);
     
-    // Briefly show the toolbar in expanded state
-    setIsExpanded(true);
+    // Clear all existing timeouts to prevent interference
+    clearAllTimeouts();
     
-    // Clear any existing timeouts
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    if (dragCooldownRef.current) {
-      clearTimeout(dragCooldownRef.current);
-    }
-    
-    // Set a flag to block manual expansion/collapse during preview
+    // Add a brief cooldown to prevent accidental expansion immediately after drag
     blockExpandRef.current = true;
     
-    // Automatically collapse the toolbar after a brief preview
-    timeoutRef.current = setTimeout(() => {
-      setIsExpanded(false);
-      
-      // Allow normal hover behavior after the preview
-      dragCooldownRef.current = setTimeout(() => {
-        blockExpandRef.current = false;
-      }, 100);
-    }, 1500); // Show expanded state for 1.5 seconds
+    // Simple cooldown to prevent immediate hover expansion after drag
+    dragCooldownRef.current = setTimeout(() => {
+      blockExpandRef.current = false;
+    }, 300); // Short cooldown to prevent accidental hover
   };
 
-  // Update onDragStart
+  // Update onDragStart with improved cleanup
   const onDragStart = () => {
     setIsDragging(true);
     setIsExpanded(false);
@@ -232,16 +237,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     setTooltipLocked(false);
     blockExpandRef.current = true;
     
-    // Clear any existing timeouts
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    if (tooltipTimeoutRef.current) {
-      clearTimeout(tooltipTimeoutRef.current);
-    }
-    if (dragCooldownRef.current) {
-      clearTimeout(dragCooldownRef.current);
-    }
+    // Clear all existing timeouts
+    clearAllTimeouts();
   };
 
   // Handle button click (normal functionality)
@@ -351,7 +348,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   // When dragging, only show the first button
   if (isDragging) {
     // Use the first pinned button, or the first button if no pinned buttons
-    const buttonToDisplay = hasPinnedButtons ? pinnedButtons[0] : buttons[0];
+    const buttonToDisplay = hasPinnedButtons ? pinnedButtons[0] : processedButtons[0];
     const icon = hasDefaultIcon && !hasPinnedButtons ? defaultIcon : buttonToDisplay.icon;
     
     content = (
@@ -523,7 +520,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
   // Get dimensions for both states
   const collapsedDimensions = getToolbarDimensions(hasPinnedButtons ? pinnedButtons.length : 1);
-  const expandedDimensions = getToolbarDimensions(buttons.length);
+  const expandedDimensions = getToolbarDimensions(processedButtons.length);
   
   // Calculate appropriate anchor position based on toolbar position
   const getAnchorPosition = (): React.CSSProperties => {
@@ -566,33 +563,46 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   }, [isExpanded]);
 
   const handleMouseEnterToolbar = () => {
+    // Track that the mouse is over the toolbar
+    isMouseOverRef.current = true;
+    
     // Only allow expansion if not dragging and not in cooldown period
     if (!isDragging && !blockExpandRef.current) {
       // Clear any pending close timeouts
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
       
-      // Expand immediately on hover (no delay)
+      // Expand immediately on hover
       setIsExpanded(true);
     }
   };
 
   const handleMouseLeaveToolbar = () => {
-    // Clear any pending expand/collapse timeouts
+    // Track that the mouse is no longer over the toolbar
+    isMouseOverRef.current = false;
+    
+    // Clear any pending timeouts
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
     
-    // Collapse with minimal delay
+    // Collapse with minimal delay - this gives a chance to re-enter
     timeoutRef.current = setTimeout(() => {
-      setIsExpanded(false);
-    }, 100); // Reduced from 2000ms to 100ms for quicker response
+      // Double-check mouse is still not over toolbar
+      if (!isMouseOverRef.current) {
+        setIsExpanded(false);
+      }
+    }, 150); // Slight delay to prevent accidental closing
     
     // Clear tooltip with a delay to prevent flickering
     if (tooltipTimeoutRef.current) {
       clearTimeout(tooltipTimeoutRef.current);
+      tooltipTimeoutRef.current = null;
     }
+    
     tooltipTimeoutRef.current = setTimeout(() => {
       setHoveredButtonId(null);
       setTooltipLocked(false);
