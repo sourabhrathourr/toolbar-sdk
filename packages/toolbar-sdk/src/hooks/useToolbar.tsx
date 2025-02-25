@@ -14,7 +14,7 @@ export const useToolbar = ({ position: initialPosition }: UseToolbarProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState(initialPosition);
   const timeoutRef = useRef<NodeJS.Timeout>();
-  
+
   const x = useMotionValue(0);
   const y = useMotionValue(0);
 
@@ -22,8 +22,8 @@ export const useToolbar = ({ position: initialPosition }: UseToolbarProps) => {
     // Initialize position
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    
-    const xPos = typeof position.x === 'string' 
+
+    const xPos = typeof position.x === 'string'
       ? (parseFloat(position.x) / 100) * viewportWidth
       : position.x;
     const yPos = typeof position.y === 'string'
@@ -44,7 +44,7 @@ export const useToolbar = ({ position: initialPosition }: UseToolbarProps) => {
     setIsDragging(false);
     setIsExpanded(true);
     setIsFullyExpanded(true);
-    
+
     // Save position
     const newPosition = {
       x: `${(x.get() / window.innerWidth) * 100}%`,
@@ -89,4 +89,4 @@ export const useToolbar = ({ position: initialPosition }: UseToolbarProps) => {
     x,
     y,
   };
-}; 
+};

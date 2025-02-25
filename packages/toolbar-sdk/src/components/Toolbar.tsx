@@ -1,19 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
+import { motion, useMotionValue } from 'framer-motion';
 import { Highlighter, MessageCircle, Sparkles } from 'lucide-react';
-import { Tooltip } from './Tooltip';
-import { ActionButton } from './ActionButton';
 import { ActionButtonsType, Position, ToolbarProps, ToolbarButton } from '../types';
 import {
   hotspots,
   getNumericPosition,
-  getNumericPositionObject,
   convertToPercentage,
   getInitialPosition,
-  getExpandDirection,
   POSITION_STORAGE_KEY,
   ORIENTATION_STORAGE_KEY,
 } from '../utils/position';
+import { getTooltipSide } from '../utils/tooltip';
+import { TooltipProvider } from './ui/tooltip';
+import Tooltip from './ui/tooltip';
+
+// Storage key for pinned buttons
+const PINNED_BUTTONS_STORAGE_KEY = 'toolbar-pinned-buttons';
 
 const defaultButtons: ToolbarButton[] = [
   {
@@ -21,6 +23,7 @@ const defaultButtons: ToolbarButton[] = [
     icon: <Sparkles size={16} />,
     tooltip: 'AI Chat',
     onClick: () => console.log('AI Chat clicked'),
+    pinned: true,
   },
   {
     id: ActionButtonsType.Annotation,
@@ -38,12 +41,14 @@ const defaultButtons: ToolbarButton[] = [
 
 export const Toolbar: React.FC<ToolbarProps> = ({ 
   className = '', 
-  buttons,
+  buttons: initialButtons,
   defaultIcon,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isFullyExpanded, setIsFullyExpanded] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const tooltipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [hoveredButtonId, setHoveredButtonId] = useState<string | null>(null);
+  const [tooltipLocked, setTooltipLocked] = useState(false);
 
   const initialState = getInitialPosition();
   const [position, setPosition] = useState<Position>(initialState.position);
@@ -54,35 +59,46 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const [isDragging, setIsDragging] = useState(false);
+  
+  // Initialize buttons with saved pinned state
+  const [buttons] = useState<ToolbarButton[]>(() => {
+    const providedButtons = initialButtons || defaultButtons;
+    
+    try {
+      const savedPinnedButtons = localStorage.getItem(PINNED_BUTTONS_STORAGE_KEY);
+      if (savedPinnedButtons) {
+        const pinnedIds = JSON.parse(savedPinnedButtons) as string[];
+        return providedButtons.map(button => ({
+          ...button,
+          pinned: pinnedIds.includes(button.id) || button.pinned
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading pinned buttons from localStorage:', error);
+    }
+    
+    return providedButtons;
+  });
+  
+  const pinnedButtons = buttons.filter(button => button.pinned);
+  const unpinnedButtons = buttons.filter(button => !button.pinned);
+  
+  // Default to first button if no pinned buttons
+  const hasDefaultIcon = defaultIcon !== undefined;
+  const hasPinnedButtons = pinnedButtons.length > 0;
+  const buttonToShow = hasPinnedButtons ? pinnedButtons[0] : buttons[0];
+  
+  // Save pinned buttons to localStorage when they change
+  useEffect(() => {
+    try {
+      const pinnedIds = buttons.filter(button => button.pinned).map(button => button.id);
+      localStorage.setItem(PINNED_BUTTONS_STORAGE_KEY, JSON.stringify(pinnedIds));
+    } catch (error) {
+      console.error('Error saving pinned buttons to localStorage:', error);
+    }
+  }, [buttons]);
 
-  const activeButtons = buttons || defaultButtons;
-  const collapsedIcon = defaultIcon || <Sparkles size={16} />;
-
-  const toolbarVariants = {
-    collapsed: {
-      width: '32px',
-      height: '32px',
-      borderRadius: '24px',
-      transition: {
-        duration: 0.3,
-        ease: [0.4, 0, 0.2, 1],
-      },
-    },
-    expanded: {
-      width: orientation === 'horizontal' 
-        ? `${(activeButtons.length * 40) + 8}px`
-        : '40px',
-      height: orientation === 'horizontal'
-        ? '40px'
-        : `${(activeButtons.length * 40) + 8}px`,
-      borderRadius: '24px',
-      transition: {
-        duration: 0.3,
-        ease: [0.4, 0, 0.2, 1],
-      },
-    },
-  };
-
+  // Set toolbar position
   useEffect(() => {
     const viewportWidth = document.documentElement.clientWidth;
     const viewportHeight = document.documentElement.clientHeight;
@@ -94,26 +110,32 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     y.set(yPos);
   }, [position, x, y]);
 
+  // Clean up any timeouts
   useEffect(() => {
-    if (isExpanded && !isDragging) {
-      setIsFullyExpanded(true);
-    } else if (isDragging) {
-      setIsFullyExpanded(false);
-    } else {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      timeoutRef.current = setTimeout(() => {
-        setIsFullyExpanded(false);
-      }, 3000);
-    }
-
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
+      if (tooltipTimeoutRef.current) {
+        clearTimeout(tooltipTimeoutRef.current);
+      }
     };
-  }, [isExpanded, isDragging]);
+  }, []);
+
+  // Handle drag interactions
+  useEffect(() => {
+    if (isDragging) {
+      setIsExpanded(false);
+      setHoveredButtonId(null);
+      setTooltipLocked(false);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      if (tooltipTimeoutRef.current) {
+        clearTimeout(tooltipTimeoutRef.current);
+      }
+    }
+  }, [isDragging]);
 
   const onDragEnd = (
     event: MouseEvent | TouchEvent | PointerEvent,
@@ -177,141 +199,318 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     setOrientation(closestHotspot.orientation);
     setPosition(newPosition);
     setIsDragging(false);
-    setIsExpanded(true);
-    setIsFullyExpanded(true);
   };
 
   const onDragStart = () => {
     setIsDragging(true);
     setIsExpanded(false);
-    setIsFullyExpanded(false);
+    setHoveredButtonId(null);
+    setTooltipLocked(false);
+  };
+
+  // Handle button click (normal functionality)
+  const handleButtonClick = (button: ToolbarButton) => {
+    button.onClick();
+  };
+
+  // Handle mouse events for tooltips with debounce
+  const handleMouseEnter = (buttonId: string) => {
+    // Clear any pending hide timeouts
+    if (tooltipTimeoutRef.current) {
+      clearTimeout(tooltipTimeoutRef.current);
+    }
+
+    // Set the hover state after a small delay to prevent accidental triggers
+    tooltipTimeoutRef.current = setTimeout(() => {
+      setHoveredButtonId(buttonId);
+      setTooltipLocked(true);
+    }, 50);
+  };
+
+  const handleMouseLeave = () => {
+    // Don't immediately hide the tooltip
+    if (tooltipTimeoutRef.current) {
+      clearTimeout(tooltipTimeoutRef.current);
+    }
+
+    // Add a delay before hiding to prevent flickering when moving between elements
+    tooltipTimeoutRef.current = setTimeout(() => {
+      setHoveredButtonId(null);
+      setTooltipLocked(false);
+    }, 100);
+  };
+
+  // Render a single button with tooltip
+  const renderButton = (button: ToolbarButton, showDivider: boolean, orientation: 'horizontal' | 'vertical') => {
+    const tooltipSide = getTooltipSide(position, orientation);
+    const isHovered = hoveredButtonId === button.id || tooltipLocked;
+    
+    return (
+      <div 
+        key={button.id}
+        style={{ 
+          position: 'relative',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <Tooltip 
+          content={button.tooltip} 
+          side={tooltipSide}
+          sideOffset={15}
+          open={isHovered && hoveredButtonId === button.id}
+        >
+          <motion.button
+            onClick={() => handleButtonClick(button)}
+            onMouseEnter={() => handleMouseEnter(button.id)}
+            onMouseLeave={handleMouseLeave}
+            style={{
+              width: '28px',
+              height: '28px',
+              padding: '0',
+              border: 'none',
+              backgroundColor: 'transparent',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              borderRadius: '50%',
+            }}
+            whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
+          >
+            {button.icon}
+          </motion.button>
+        </Tooltip>
+        
+        {showDivider && (
+          <div
+            style={{
+              position: 'absolute',
+              backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              ...(orientation === 'vertical'
+                ? {
+                    bottom: '-3px',
+                    left: '25%',
+                    width: '50%',
+                    height: '1px',
+                  }
+                : {
+                    right: '-3px',
+                    top: '25%',
+                    width: '1px',
+                    height: '50%',
+                  }),
+            }}
+          />
+        )}
+      </div>
+    );
+  };
+
+  // Decide content based on number of pinned buttons
+  let content: React.ReactNode;
+  if (!hasPinnedButtons) {
+    // If no pinned buttons, just show the default icon or the first button
+    const icon = hasDefaultIcon ? defaultIcon : buttonToShow?.icon;
+    const tooltip = buttonToShow?.tooltip || "Action";
+    const tooltipSide = getTooltipSide(position, orientation);
+    const isHovered = buttonToShow && hoveredButtonId === buttonToShow.id;
+    
+    content = (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: '100%',
+        height: '100%',
+      }}>
+        <Tooltip 
+          content={tooltip} 
+          side={tooltipSide}
+          sideOffset={15}
+          open={isHovered}
+        >
+          <motion.button
+            onClick={() => buttonToShow && handleButtonClick(buttonToShow)}
+            onMouseEnter={() => buttonToShow && handleMouseEnter(buttonToShow.id)}
+            onMouseLeave={handleMouseLeave}
+            style={{
+              width: '28px',
+              height: '28px',
+              padding: '0',
+              border: 'none',
+              backgroundColor: 'transparent',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              borderRadius: '50%',
+            }}
+            whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
+          >
+            {icon}
+          </motion.button>
+        </Tooltip>
+      </div>
+    );
+  } else {
+    // Unified approach for both orientations - pinned elements remain static
+    const containerStyle: React.CSSProperties = {
+      display: 'flex',
+      flexDirection: orientation === 'horizontal' ? 'row' : 'column',
+      padding: orientation === 'horizontal' ? '6px' : '7px 6px',
+      gap: '6px',
+      width: '100%',
+      height: '100%',
+      alignItems: 'center',
+      justifyContent: 'flex-start', // Restore original alignment to keep pinned elements static
+      boxSizing: 'border-box',
+      transformOrigin: orientation === 'horizontal' ? 'left center' : 'center top',
+    };
+    
+    // Show the toolbar content conditionally based on expanded state
+    content = (
+      <div style={containerStyle}>
+        {/* Always show pinned buttons */}
+        {pinnedButtons.map((button, index) => {
+          const isLast = index === pinnedButtons.length - 1;
+          // Only show divider if there are unpinned buttons and we're expanded
+          const showDivider = !isLast || (isExpanded && !isDragging && unpinnedButtons.length > 0);
+          return renderButton(button, showDivider, orientation);
+        })}
+        
+        {/* Only show unpinned buttons when expanded */}
+        {isExpanded && !isDragging && unpinnedButtons.map((button, index) => {
+          const isLast = index === unpinnedButtons.length - 1;
+          const showDivider = !isLast;
+          return renderButton(button, showDivider, orientation);
+        })}
+      </div>
+    );
+  }
+
+  // Calculate sizes for the toolbar
+  const buttonSize = 28; // Reduced from 32px to 28px
+  const buttonSpacing = 6; // Reduced from 8px to 6px
+  const padding = 6; // Reduced from 8px to 6px
+  const verticalPadding = 7; // Slightly more padding for vertical orientation
+
+  // Calculate the border radius - fully rounded edges
+  const getBorderRadius = () => {
+    // For a pill shape, use half the height/width
+    if (orientation === 'horizontal') {
+      // For horizontal: half the height for fully rounded sides
+      return `${(buttonSize + padding * 2) / 2}px`;
+    } else {
+      // For vertical: half the width for fully rounded sides
+      return `${(buttonSize + padding * 2) / 2}px`;
+    }
+  };
+
+  // Calculate the width and height of the toolbar based on orientation and number of visible buttons
+  const getToolbarDimensions = (buttonCount: number) => {
+    if (orientation === 'horizontal') {
+      // For horizontal, calculate full width including all buttons when expanded
+      const width = buttonCount * buttonSize + (buttonCount - 1) * buttonSpacing + padding * 2;
+      return { width: `${width}px`, height: `${buttonSize + padding * 2}px` };
+    } else {
+      // For vertical, calculate full height including all buttons when expanded
+      const contentHeight = buttonCount * buttonSize + (buttonCount - 1) * buttonSpacing;
+      return { 
+        width: `${buttonSize + padding * 2}px`, 
+        height: `${contentHeight + verticalPadding * 2}px` 
+      };
+    }
+  };
+
+  // Get dimensions for both states
+  const collapsedDimensions = getToolbarDimensions(hasPinnedButtons ? pinnedButtons.length : 1);
+  const expandedDimensions = getToolbarDimensions(buttons.length);
+  const borderRadius = getBorderRadius();
+
+  // Clear tooltip when toolbar is closed
+  useEffect(() => {
+    if (!isExpanded) {
+      if (tooltipTimeoutRef.current) {
+        clearTimeout(tooltipTimeoutRef.current);
+      }
+      setHoveredButtonId(null);
+      setTooltipLocked(false);
+    }
+  }, [isExpanded]);
+
+  const handleMouseEnterToolbar = () => {
+    if (!isDragging) {
+      setIsExpanded(true);
+    }
+  };
+
+  const handleMouseLeaveToolbar = () => {
+    setIsExpanded(false);
+    // Clear tooltip with a delay to prevent flickering
+    if (tooltipTimeoutRef.current) {
+      clearTimeout(tooltipTimeoutRef.current);
+    }
+    tooltipTimeoutRef.current = setTimeout(() => {
+      setHoveredButtonId(null);
+      setTooltipLocked(false);
+    }, 100);
   };
 
   return (
-    <motion.div
-      className={className}
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        zIndex: 10000,
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        transform: 'translate(-50%, -50%)',
-        border: '1px solid rgba(255, 255, 255, 0.15)',
-        x,
-        y,
-      }}
-      initial={{
-        x: getNumericPosition('98%', window.innerWidth),
-        y: getNumericPosition('80%', window.innerHeight),
-        ...toolbarVariants.collapsed,
-      }}
-      drag
-      dragConstraints={{
-        top: 40,
-        left: 40,
-        right: document.documentElement.clientWidth - 40,
-        bottom: document.documentElement.clientHeight - 40,
-      }}
-      dragMomentum={false}
-      dragElastic={0}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      animate={isFullyExpanded ? 'expanded' : 'collapsed'}
-      variants={toolbarVariants}
-      onMouseEnter={() => !isDragging && setIsExpanded(true)}
-      onMouseLeave={() => setIsExpanded(false)}
-      transition={{
-        type: 'spring',
-        damping: 25,
-        stiffness: 300,
-        mass: 0.5,
-        bounce: 0.25,
-      }}
-    >
-      <AnimatePresence mode="wait">
-        {isFullyExpanded && !isDragging ? (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ duration: 0.2 }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '4px',
-              flexDirection: orientation === 'vertical' ? 'column' : 'row',
-              width: '100%',
-              height: '100%',
-              transformOrigin:
-                orientation === 'vertical'
-                  ? getExpandDirection(
-                      getNumericPosition(position.x, window.innerWidth),
-                      getNumericPosition(position.y, window.innerHeight)
-                    ).vertical === 'up'
-                    ? 'bottom'
-                    : 'top'
-                  : getExpandDirection(
-                      getNumericPosition(position.x, window.innerWidth),
-                      getNumericPosition(position.y, window.innerHeight)
-                    ).horizontal === 'left'
-                  ? 'right'
-                  : 'left',
-            }}
-          >
-            {activeButtons.map((button, index) => (
-              <ActionButton
-                key={button.id}
-                icon={button.icon}
-                onClick={button.onClick}
-                tooltip={button.tooltip}
-                isLast={index === activeButtons.length - 1}
-                orientation={orientation}
-                position={position}
-              />
-            ))}
-          </motion.div>
-        ) : (
-          <Tooltip
-            text={activeButtons[0]?.tooltip || "AI Chat"}
-            position={getNumericPositionObject(
-              position,
-              window.innerWidth,
-              window.innerHeight
-            )}
-            orientation={orientation}
-          >
-            <motion.button
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              onClick={activeButtons[0]?.onClick}
-              style={{
-                width: '32px',
-                height: '32px',
-                padding: '0',
-                border: 'none',
-                backgroundColor: 'transparent',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-              }}
-            >
-              {collapsedIcon}
-            </motion.button>
-          </Tooltip>
-        )}
-      </AnimatePresence>
-    </motion.div>
+    <TooltipProvider>
+      <motion.div
+        className={className}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          zIndex: 10000,
+          backgroundColor: 'rgba(0, 0, 0, 0.85)',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
+          transform: 'translate(-50%, -50%)',
+          x,
+          y,
+          overflow: 'hidden',
+        }}
+        animate={{
+          width: isExpanded && !isDragging ? expandedDimensions.width : collapsedDimensions.width,
+          height: isExpanded && !isDragging ? expandedDimensions.height : collapsedDimensions.height,
+          borderRadius: borderRadius,
+        }}
+        transition={{
+          type: 'spring',
+          stiffness: 400,
+          damping: 30,
+          originX: orientation === 'horizontal' ? 0 : 0.5,
+          originY: orientation === 'horizontal' ? 0.5 : 0,
+        }}
+        initial={{
+          x: getNumericPosition('98%', window.innerWidth),
+          y: getNumericPosition('80%', window.innerHeight),
+        }}
+        drag
+        dragConstraints={{
+          top: 40,
+          left: 40,
+          right: document.documentElement.clientWidth - 40,
+          bottom: document.documentElement.clientHeight - 40,
+        }}
+        dragMomentum={false}
+        dragElastic={0}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onMouseEnter={handleMouseEnterToolbar}
+        onMouseLeave={handleMouseLeaveToolbar}
+      >
+        {content}
+      </motion.div>
+    </TooltipProvider>
   );
 }; 

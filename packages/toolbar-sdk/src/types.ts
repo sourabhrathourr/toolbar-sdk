@@ -11,6 +11,7 @@ export interface ToolbarButton {
   icon: ReactNode;
   tooltip: string;
   onClick: () => void;
+  pinned?: boolean;
 }
 
 export interface Position {
