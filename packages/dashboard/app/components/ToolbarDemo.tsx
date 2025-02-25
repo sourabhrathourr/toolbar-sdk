@@ -27,7 +27,7 @@ export function ToolbarDemo() {
             icon: <MessageCircle size={16} />,
             tooltip: 'Chat',
             onClick: () => console.log('Chat clicked'),
-            pinned: true, // This button will always be visible in the collapsed state
+            pinned: true,
           },
           {
             id: 'settings',

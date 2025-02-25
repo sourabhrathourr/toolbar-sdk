@@ -6,13 +6,13 @@ export const ORIENTATION_STORAGE_KEY = 'toolbar_orientation';
 export const hotspots: Hotspot[] = [
   { x: 40, y: 40, orientation: 'vertical' }, // Top left
   { x: '47%', y: 40, orientation: 'horizontal' }, // Top center
-  { x: '96%', y: 40, orientation: 'vertical' }, // Top right
+  { x: '98%', y: 40, orientation: 'vertical' }, // Top right
   { x: 40, y: '45%', orientation: 'vertical' }, // Center left
   { x: '47%', y: '50%', orientation: 'horizontal' }, // Center
-  { x: '96%', y: '45%', orientation: 'vertical' }, // Center right
-  { x: 40, y: '80%', orientation: 'vertical' }, // Bottom left
+  { x: '98%', y: '45%', orientation: 'vertical' }, // Center right
+  { x: 40, y: '96%', orientation: 'vertical' }, // Bottom left
   { x: '47%', y: '92%', orientation: 'horizontal' }, // Bottom center
-  { x: '96%', y: '80%', orientation: 'vertical' }, // Bottom right
+  { x: '98%', y: '96%', orientation: 'vertical' }, // Bottom right
 ];
 
 export const getNumericPosition = (pos: string | number, viewportSize: number): number => {
@@ -64,8 +64,8 @@ export const getInitialPosition = (): {
   // Default position matching bottom right hotspot exactly
   return {
     position: {
-      x: '96%',
-      y: '80%',
+      x: '98%',
+      y: '96%',
     },
     orientation: 'vertical',
   };

@@ -14,9 +14,6 @@ import { getTooltipSide } from '../utils/tooltip';
 import { TooltipProvider } from './ui/tooltip';
 import Tooltip from './ui/tooltip';
 
-// Storage key for pinned buttons
-const PINNED_BUTTONS_STORAGE_KEY = 'toolbar-pinned-buttons';
-
 const defaultButtons: ToolbarButton[] = [
   {
     id: ActionButtonsType.Summarize,
@@ -47,6 +44,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const tooltipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const dragCooldownRef = useRef<NodeJS.Timeout | null>(null);
+  const blockExpandRef = useRef(false);
   const [hoveredButtonId, setHoveredButtonId] = useState<string | null>(null);
   const [tooltipLocked, setTooltipLocked] = useState(false);
 
@@ -60,25 +59,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const y = useMotionValue(0);
   const [isDragging, setIsDragging] = useState(false);
   
-  // Initialize buttons with saved pinned state
-  const [buttons] = useState<ToolbarButton[]>(() => {
-    const providedButtons = initialButtons || defaultButtons;
-    
-    try {
-      const savedPinnedButtons = localStorage.getItem(PINNED_BUTTONS_STORAGE_KEY);
-      if (savedPinnedButtons) {
-        const pinnedIds = JSON.parse(savedPinnedButtons) as string[];
-        return providedButtons.map(button => ({
-          ...button,
-          pinned: pinnedIds.includes(button.id) || button.pinned
-        }));
-      }
-    } catch (error) {
-      console.error('Error loading pinned buttons from localStorage:', error);
-    }
-    
-    return providedButtons;
-  });
+  // Use buttons directly from props or default buttons
+  const buttons = initialButtons || defaultButtons;
   
   const pinnedButtons = buttons.filter(button => button.pinned);
   const unpinnedButtons = buttons.filter(button => !button.pinned);
@@ -87,16 +69,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const hasDefaultIcon = defaultIcon !== undefined;
   const hasPinnedButtons = pinnedButtons.length > 0;
   const buttonToShow = hasPinnedButtons ? pinnedButtons[0] : buttons[0];
-  
-  // Save pinned buttons to localStorage when they change
-  useEffect(() => {
-    try {
-      const pinnedIds = buttons.filter(button => button.pinned).map(button => button.id);
-      localStorage.setItem(PINNED_BUTTONS_STORAGE_KEY, JSON.stringify(pinnedIds));
-    } catch (error) {
-      console.error('Error saving pinned buttons to localStorage:', error);
-    }
-  }, [buttons]);
 
   // Set toolbar position
   useEffect(() => {
@@ -119,6 +91,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       if (tooltipTimeoutRef.current) {
         clearTimeout(tooltipTimeoutRef.current);
       }
+      if (dragCooldownRef.current) {
+        clearTimeout(dragCooldownRef.current);
+      }
     };
   }, []);
 
@@ -136,6 +111,30 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       }
     }
   }, [isDragging]);
+
+  // Determine if toolbar is near bottom of screen
+  const isNearBottom = () => {
+    const viewportHeight = document.documentElement.clientHeight;
+    const viewportWidth = document.documentElement.clientWidth;
+    const yPos = getNumericPosition(position.y, viewportHeight);
+    const xPos = getNumericPosition(position.x, viewportWidth);
+    
+    // Special case: don't reorder for bottom center position (horizontal orientation)
+    const isBottomCenter = yPos > viewportHeight * 0.7 && 
+                          xPos > viewportWidth * 0.35 && 
+                          xPos < viewportWidth * 0.65 &&
+                          orientation === 'horizontal';
+    
+    // Only return true for bottom positions that are not bottom center
+    return yPos > viewportHeight * 0.7 && !isBottomCenter;
+  };
+
+  // Determine if toolbar is near right of screen
+  const isNearRight = () => {
+    const viewportWidth = document.documentElement.clientWidth;
+    const xPos = getNumericPosition(position.x, viewportWidth);
+    return xPos > viewportWidth * 0.7; // If in the right 30% of the viewport
+  };
 
   const onDragEnd = (
     event: MouseEvent | TouchEvent | PointerEvent,
@@ -199,13 +198,50 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     setOrientation(closestHotspot.orientation);
     setPosition(newPosition);
     setIsDragging(false);
+    
+    // Briefly show the toolbar in expanded state
+    setIsExpanded(true);
+    
+    // Clear any existing timeouts
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    if (dragCooldownRef.current) {
+      clearTimeout(dragCooldownRef.current);
+    }
+    
+    // Set a flag to block manual expansion/collapse during preview
+    blockExpandRef.current = true;
+    
+    // Automatically collapse the toolbar after a brief preview
+    timeoutRef.current = setTimeout(() => {
+      setIsExpanded(false);
+      
+      // Allow normal hover behavior after the preview
+      dragCooldownRef.current = setTimeout(() => {
+        blockExpandRef.current = false;
+      }, 100);
+    }, 1500); // Show expanded state for 1.5 seconds
   };
 
+  // Update onDragStart
   const onDragStart = () => {
     setIsDragging(true);
     setIsExpanded(false);
     setHoveredButtonId(null);
     setTooltipLocked(false);
+    blockExpandRef.current = true;
+    
+    // Clear any existing timeouts
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    if (tooltipTimeoutRef.current) {
+      clearTimeout(tooltipTimeoutRef.current);
+    }
+    if (dragCooldownRef.current) {
+      clearTimeout(dragCooldownRef.current);
+    }
   };
 
   // Handle button click (normal functionality)
@@ -259,7 +295,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           content={button.tooltip} 
           side={tooltipSide}
           sideOffset={15}
-          open={isHovered && hoveredButtonId === button.id}
+          open={isHovered && hoveredButtonId === button.id && !isDragging}
         >
           <motion.button
             onClick={() => handleButtonClick(button)}
@@ -311,7 +347,36 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
   // Decide content based on number of pinned buttons
   let content: React.ReactNode;
-  if (!hasPinnedButtons) {
+  
+  // When dragging, only show the first button
+  if (isDragging) {
+    // Use the first pinned button, or the first button if no pinned buttons
+    const buttonToDisplay = hasPinnedButtons ? pinnedButtons[0] : buttons[0];
+    const icon = hasDefaultIcon && !hasPinnedButtons ? defaultIcon : buttonToDisplay.icon;
+    
+    content = (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: '100%',
+        height: '100%',
+      }}>
+        <div style={{
+          width: '28px',
+          height: '28px',
+          padding: '0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'white',
+          borderRadius: '50%',
+        }}>
+          {icon}
+        </div>
+      </div>
+    );
+  } else if (!hasPinnedButtons) {
     // If no pinned buttons, just show the default icon or the first button
     const icon = hasDefaultIcon ? defaultIcon : buttonToShow?.icon;
     const tooltip = buttonToShow?.tooltip || "Action";
@@ -330,7 +395,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           content={tooltip} 
           side={tooltipSide}
           sideOffset={15}
-          open={isHovered}
+          open={isHovered && !isDragging}
         >
           <motion.button
             onClick={() => buttonToShow && handleButtonClick(buttonToShow)}
@@ -357,7 +422,51 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       </div>
     );
   } else {
-    // Unified approach for both orientations - pinned elements remain static
+    // Check if we should reverse the order (when near bottom)
+    const shouldReverseOrder = isNearBottom();
+    
+    // Order elements with pinned at bottom when in bottom position
+    const elementsToRender: React.ReactNode[] = [];
+    
+    if (shouldReverseOrder) {
+      // When at the bottom, unpinned buttons are shown first (when expanded), pinned buttons at the bottom
+      if (isExpanded && !isDragging && unpinnedButtons.length > 0) {
+        // For expanded state, add unpinned buttons first (they appear on top)
+        unpinnedButtons.reverse().forEach((button, index) => {
+          const isLast = index === unpinnedButtons.length - 1;
+          // Show divider after last unpinned button, before pinned buttons
+          const showDivider = !isLast || pinnedButtons.length > 0;
+          elementsToRender.push(renderButton(button, showDivider, orientation));
+        });
+      }
+      
+      // Add pinned buttons at the end (they appear at the bottom)
+      pinnedButtons.reverse().forEach((button, index) => {
+        const isLast = index === pinnedButtons.length - 1;
+        const showDivider = !isLast;
+        elementsToRender.push(renderButton(button, showDivider, orientation));
+      });
+    } else {
+      // Normal order (pinned buttons first, unpinned after)
+      // Add pinned buttons first
+      pinnedButtons.forEach((button, index) => {
+        const isLast = index === pinnedButtons.length - 1;
+        // Only show divider if there are unpinned buttons and we're expanded
+        const showDivider = !isLast || (isExpanded && !isDragging && unpinnedButtons.length > 0);
+        elementsToRender.push(renderButton(button, showDivider, orientation));
+      });
+      
+      // Then add unpinned buttons when expanded
+      if (isExpanded && !isDragging && unpinnedButtons.length > 0) {
+        unpinnedButtons.forEach((button, index) => {
+          const isLast = index === unpinnedButtons.length - 1;
+          const showDivider = !isLast;
+          elementsToRender.push(renderButton(button, showDivider, orientation));
+        });
+      }
+    }
+    
+    // Unified approach for both orientations
     const containerStyle: React.CSSProperties = {
       display: 'flex',
       flexDirection: orientation === 'horizontal' ? 'row' : 'column',
@@ -366,36 +475,22 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       width: '100%',
       height: '100%',
       alignItems: 'center',
-      justifyContent: 'flex-start', // Restore original alignment to keep pinned elements static
+      justifyContent: shouldReverseOrder ? 'flex-end' : 'flex-start', // Align based on position
       boxSizing: 'border-box',
-      transformOrigin: orientation === 'horizontal' ? 'left center' : 'center top',
     };
     
-    // Show the toolbar content conditionally based on expanded state
+    // Render the content
     content = (
       <div style={containerStyle}>
-        {/* Always show pinned buttons */}
-        {pinnedButtons.map((button, index) => {
-          const isLast = index === pinnedButtons.length - 1;
-          // Only show divider if there are unpinned buttons and we're expanded
-          const showDivider = !isLast || (isExpanded && !isDragging && unpinnedButtons.length > 0);
-          return renderButton(button, showDivider, orientation);
-        })}
-        
-        {/* Only show unpinned buttons when expanded */}
-        {isExpanded && !isDragging && unpinnedButtons.map((button, index) => {
-          const isLast = index === unpinnedButtons.length - 1;
-          const showDivider = !isLast;
-          return renderButton(button, showDivider, orientation);
-        })}
+        {elementsToRender}
       </div>
     );
   }
 
   // Calculate sizes for the toolbar
-  const buttonSize = 28; // Reduced from 32px to 28px
-  const buttonSpacing = 6; // Reduced from 8px to 6px
-  const padding = 6; // Reduced from 8px to 6px
+  const buttonSize = 28; // Size of the button
+  const buttonSpacing = 6; // Spacing between buttons
+  const padding = 6; // Padding around buttons
   const verticalPadding = 7; // Slightly more padding for vertical orientation
 
   // Calculate the border radius - fully rounded edges
@@ -413,11 +508,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   // Calculate the width and height of the toolbar based on orientation and number of visible buttons
   const getToolbarDimensions = (buttonCount: number) => {
     if (orientation === 'horizontal') {
-      // For horizontal, calculate full width including all buttons when expanded
+      // For horizontal, calculate full width including all buttons
       const width = buttonCount * buttonSize + (buttonCount - 1) * buttonSpacing + padding * 2;
       return { width: `${width}px`, height: `${buttonSize + padding * 2}px` };
     } else {
-      // For vertical, calculate full height including all buttons when expanded
+      // For vertical, calculate full height including all buttons
       const contentHeight = buttonCount * buttonSize + (buttonCount - 1) * buttonSpacing;
       return { 
         width: `${buttonSize + padding * 2}px`, 
@@ -429,7 +524,35 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   // Get dimensions for both states
   const collapsedDimensions = getToolbarDimensions(hasPinnedButtons ? pinnedButtons.length : 1);
   const expandedDimensions = getToolbarDimensions(buttons.length);
-  const borderRadius = getBorderRadius();
+  
+  // Calculate appropriate anchor position based on toolbar position
+  const getAnchorPosition = (): React.CSSProperties => {
+    const nearBottom = isNearBottom();
+    const nearRight = isNearRight();
+    
+    if (orientation === 'vertical') {
+      return {
+        position: 'absolute' as const,
+        ...(nearBottom ? { bottom: 0 } : { top: 0 }),
+        ...(nearRight ? { right: 0 } : { left: 0 }),
+      };
+    } else {
+      return {
+        position: 'absolute' as const,
+        ...(nearBottom ? { bottom: 0 } : { top: 0 }),
+        ...(nearRight ? { right: 0 } : { left: 0 }),
+      };
+    }
+  };
+  
+  // Set transform origin to bottom or right based on position
+  const getTransformOrigin = () => {
+    if (isNearBottom()) {
+      return orientation === 'vertical' ? 'center bottom' : 'right center';
+    } else {
+      return orientation === 'horizontal' ? 'left center' : 'center top';
+    }
+  };
 
   // Clear tooltip when toolbar is closed
   useEffect(() => {
@@ -443,13 +566,29 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   }, [isExpanded]);
 
   const handleMouseEnterToolbar = () => {
-    if (!isDragging) {
+    // Only allow expansion if not dragging and not in cooldown period
+    if (!isDragging && !blockExpandRef.current) {
+      // Clear any pending close timeouts
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      // Expand immediately on hover (no delay)
       setIsExpanded(true);
     }
   };
 
   const handleMouseLeaveToolbar = () => {
-    setIsExpanded(false);
+    // Clear any pending expand/collapse timeouts
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
+    // Collapse with minimal delay
+    timeoutRef.current = setTimeout(() => {
+      setIsExpanded(false);
+    }, 100); // Reduced from 2000ms to 100ms for quicker response
+    
     // Clear tooltip with a delay to prevent flickering
     if (tooltipTimeoutRef.current) {
       clearTimeout(tooltipTimeoutRef.current);
@@ -465,36 +604,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       <motion.div
         className={className}
         style={{
+          x,
+          y,
           position: 'fixed',
           top: 0,
           left: 0,
           zIndex: 10000,
-          backgroundColor: 'rgba(0, 0, 0, 0.85)',
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-          backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
-          transform: 'translate(-50%, -50%)',
-          x,
-          y,
-          overflow: 'hidden',
+          overflow: 'visible', // Make overflow visible to allow content to expand outside
         }}
-        animate={{
-          width: isExpanded && !isDragging ? expandedDimensions.width : collapsedDimensions.width,
-          height: isExpanded && !isDragging ? expandedDimensions.height : collapsedDimensions.height,
-          borderRadius: borderRadius,
-        }}
-        transition={{
-          type: 'spring',
-          stiffness: 400,
-          damping: 30,
-          originX: orientation === 'horizontal' ? 0 : 0.5,
-          originY: orientation === 'horizontal' ? 0.5 : 0,
-        }}
-        initial={{
-          x: getNumericPosition('98%', window.innerWidth),
-          y: getNumericPosition('80%', window.innerHeight),
-        }}
+        initial={{}}
         drag
         dragConstraints={{
           top: 40,
@@ -506,10 +624,47 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         dragElastic={0}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
-        onMouseEnter={handleMouseEnterToolbar}
-        onMouseLeave={handleMouseLeaveToolbar}
       >
-        {content}
+        {/* Inner container for content with animations */}
+        <motion.div
+          style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            overflow: 'hidden',
+            borderRadius: getBorderRadius(),
+            transformOrigin: getTransformOrigin(),
+            ...getAnchorPosition(),
+          }}
+          animate={{
+            width: isDragging 
+              ? `${buttonSize + padding * 2}px` // Consistent size with padding when dragging
+              : (isExpanded ? expandedDimensions.width : collapsedDimensions.width),
+            height: isDragging 
+              ? `${buttonSize + padding * 2}px` // Consistent size with padding when dragging
+              : (isExpanded ? expandedDimensions.height : collapsedDimensions.height),
+          }}
+          transition={{
+            // Different animation types for opening vs closing
+            type: isExpanded ? 'spring' : 'tween',
+            // Spring properties (only used when opening)
+            stiffness: 200,
+            damping: 25,
+            // Tween properties (only used when closing)
+            duration: isExpanded ? 0.4 : 0.3, // Reduced closing duration from 0.7 to 0.3
+            ease: isExpanded ? undefined : [0.2, 0, 0.3, 1], // Slightly faster easing curve
+          }}
+          initial={{
+            width: collapsedDimensions.width,
+            height: collapsedDimensions.height,
+          }}
+          onMouseEnter={handleMouseEnterToolbar}
+          onMouseLeave={handleMouseLeaveToolbar}
+        >
+          {content}
+        </motion.div>
       </motion.div>
     </TooltipProvider>
   );
