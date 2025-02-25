@@ -11,6 +11,11 @@ A customizable floating toolbar SDK for React applications. Create a draggable i
 - 💾 Persistent position storage
 - 🌟 Smooth animations and transitions
 - 📱 Responsive and draggable interface
+- 🧠 Smart button management with first-button-always-pinned
+- 🎭 Simplified single-button display during drag operations
+- 📍 Tooltip with directional arrows for better visual connection
+- 🔄 Different animation types for expanding (spring) and collapsing (tween)
+- ⭕ Circular appearance when only one button is visible
 
 ## Installation
 
@@ -119,15 +124,19 @@ function App() {
 | `icon` | `ReactNode` | Icon component to display |
 | `tooltip` | `string` | Tooltip text shown on hover |
 | `onClick` | `() => void` | Click handler for the button |
+| `pinned` | `boolean` | Whether the button is pinned (visible in collapsed state) |
 
 ## Behavior
 
 - The toolbar starts in a collapsed state with the default/first action icon
 - Hover to expand and show all actions
-- Drag to reposition
+- Drag to reposition (simplifies to a single button during drag)
 - Automatically snaps to the nearest hotspot
 - Persists position between page reloads
 - Automatically switches between horizontal/vertical orientation based on position
+- First button is always pinned by default
+- Displays as a circle when only one button is visible
+- Tooltips feature directional arrows that point to their associated buttons
 
 ## Requirements
 
