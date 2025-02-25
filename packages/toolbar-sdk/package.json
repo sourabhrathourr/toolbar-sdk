@@ -1,6 +1,6 @@
 {
   "name": "@betterstacks/toolbar-sdk",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "A customizable floating toolbar SDK for React applications",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

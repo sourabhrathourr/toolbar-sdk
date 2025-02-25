@@ -2,11 +2,11 @@
 
 import dynamic from 'next/dynamic';
 import { MessageCircle, Sparkles, Settings, FileText, Mail, HelpCircle } from 'lucide-react';
-import type { ToolbarProps } from '../../../toolbar-sdk/src/types';
+import type { ToolbarProps } from '@betterstacks/toolbar-sdk';
 
 // Dynamically import Toolbar with SSR disabled
 const Toolbar = dynamic<ToolbarProps>(
-  () => import('../../../toolbar-sdk/src/components/Toolbar').then(mod => mod.Toolbar),
+  () => import('@betterstacks/toolbar-sdk').then(mod => mod.Toolbar),
   { ssr: false }
 );
 
@@ -53,7 +53,7 @@ export function ToolbarDemo() {
             onClick: () => console.log('Help clicked'),
           },
         ]}
-        defaultIcon={<Sparkles size={16} />} 
+        defaultIcon={<Sparkles size={16} />}
       />
     </div>
   );
