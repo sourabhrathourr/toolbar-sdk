@@ -1,6 +1,6 @@
 {
   "name": "@betterstacks/toolbar-sdk",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "description": "A customizable floating toolbar SDK for React applications",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -29,8 +29,8 @@
     "dist/**"
   ],
   "scripts": {
-    "build": "tsup src/index.tsx --format esm,cjs --dts --external react --tsconfig ./tsconfig.json",
-    "dev": "tsup src/index.tsx --format esm,cjs --watch --dts --external react",
+    "build": "tsup src/index.tsx --format esm,cjs --dts --external react --external react-dom --tsconfig ./tsconfig.json",
+    "dev": "tsup src/index.tsx --format esm,cjs --watch --dts --external react --external react-dom",
     "lint": "eslint src/",
     "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist",
     "prepublishOnly": "npm run build",
@@ -46,7 +46,8 @@
     "typescript": "^5"
   },
   "peerDependencies": {
-    "react": "^19.0.0"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "dependencies": {
     "@radix-ui/react-tooltip": "^1.1.8",

@@ -34,8 +34,10 @@ TooltipArrow.displayName = TooltipPrimitive.Arrow.displayName
 
 const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 4, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content> & {
+    tooltipBackgroundColor?: string;
+  }
+>(({ className, sideOffset = 4, tooltipBackgroundColor, ...props }, ref) => (
   <TooltipPrimitive.Portal>
     <TooltipPrimitive.Content
       ref={ref}
@@ -61,7 +63,11 @@ const TooltipContent = React.forwardRef<
       }}
     >
       {props.children}
-      <TooltipArrow />
+      <TooltipArrow 
+        style={{
+          fill: tooltipBackgroundColor || 'rgba(0, 0, 0, 0.95)',
+        }}
+      />
     </TooltipPrimitive.Content>
   </TooltipPrimitive.Portal>
 ))
@@ -75,6 +81,7 @@ const Tooltip = ({
   sideOffset = 10,
   open,
   defaultOpen,
+  theme,
 }: {
   children: React.ReactNode;
   content: React.ReactNode;
@@ -82,6 +89,10 @@ const Tooltip = ({
   sideOffset?: number;
   open?: boolean;
   defaultOpen?: boolean;
+  theme?: {
+    tooltipBackgroundColor?: string;
+    tooltipTextColor?: string;
+  };
 }) => (
   <TooltipRoot 
     delayDuration={0}
@@ -94,6 +105,11 @@ const Tooltip = ({
       sideOffset={sideOffset} 
       forceMount={true}
       avoidCollisions={true}
+      tooltipBackgroundColor={theme?.tooltipBackgroundColor}
+      style={{
+        backgroundColor: theme?.tooltipBackgroundColor || 'rgba(0, 0, 0, 0.95)',
+        color: theme?.tooltipTextColor || '#fff',
+      }}
     >
       {content}
     </TooltipContent>

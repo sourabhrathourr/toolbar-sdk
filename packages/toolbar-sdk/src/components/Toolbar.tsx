@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, useMotionValue } from 'framer-motion';
 import { Highlighter, MessageCircle, Sparkles } from 'lucide-react';
 import { ActionButtonsType, Position, ToolbarProps, ToolbarButton } from '../types';
@@ -40,8 +41,27 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   className = '', 
   buttons: initialButtons,
   defaultIcon,
+  theme = {},
 }) => {
+  // Default theme values for backward compatibility
+  const defaultTheme = {
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    iconColor: 'white',
+    hoverBackgroundColor: 'rgba(255, 255, 255, 0.1)',
+    tooltipBackgroundColor: 'rgba(0, 0, 0, 0.9)',
+    tooltipTextColor: 'white',
+    backdropFilter: 'blur(8px)',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+    badgeBackgroundColor: '#ef4444',
+    badgeTextColor: 'white',
+    badgeBorderColor: 'rgba(255, 255, 255, 0.15)',
+  };
+  
+  const appliedTheme = { ...defaultTheme, ...theme };
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showExpandedBadges, setShowExpandedBadges] = useState(false);
+  const badgeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const tooltipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const dragCooldownRef = useRef<NodeJS.Timeout | null>(null);
@@ -121,6 +141,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       clearTimeout(dragCooldownRef.current);
       dragCooldownRef.current = null;
     }
+    if (badgeTimeoutRef.current) {
+      clearTimeout(badgeTimeoutRef.current);
+      badgeTimeoutRef.current = null;
+    }
   };
 
   // Clean up any timeouts
@@ -129,6 +153,34 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       clearAllTimeouts();
     };
   }, []);
+
+  // Control badge visibility for expanded buttons with timing
+  useEffect(() => {
+    if (badgeTimeoutRef.current) {
+      clearTimeout(badgeTimeoutRef.current);
+    }
+
+    if (isExpanded) {
+      // Show expanded badges after a delay when expanding
+      badgeTimeoutRef.current = setTimeout(() => {
+        setShowExpandedBadges(true);
+      }, 300); // Increased delay to let toolbar fully expand
+    } else {
+      // Hide expanded badges immediately when collapsing
+      setShowExpandedBadges(false);
+    }
+
+    return () => {
+      if (badgeTimeoutRef.current) {
+        clearTimeout(badgeTimeoutRef.current);
+      }
+    };
+  }, [isExpanded]);
+
+  // Update badges when toolbar position changes
+  useEffect(() => {
+    // Badges will re-render automatically when position changes
+  }, [position, x.get(), y.get()]);
 
   // Determine if toolbar is near bottom of screen
   const isNearBottom = () => {
@@ -155,7 +207,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   };
 
   const onDragEnd = (
-    event: MouseEvent | TouchEvent | PointerEvent,
+    _event: MouseEvent | TouchEvent | PointerEvent,
     info: {
       point: { x: number; y: number };
     }
@@ -273,6 +325,222 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     }, 100);
   };
 
+  // Create a ref for the toolbar container to calculate badge positions
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  
+  // Render count badges using portal for better positioning
+  const renderPortalBadges = () => {
+    if (!toolbarRef.current || isDragging) return null;
+    
+    const badges: React.ReactNode[] = [];
+    const toolbarRect = toolbarRef.current.getBoundingClientRect();
+    const shouldReverseOrder = isNearBottom();
+    
+    // Calculate the actual visual positions based on how buttons are rendered
+    if (shouldReverseOrder) {
+      // Bottom position: button order is reversed for both horizontal and vertical
+      
+      if (orientation === 'horizontal') {
+        // Horizontal bottom: elements are counted from left to right, but in reversed order
+        
+        if (!isExpanded) {
+          // Collapsed: only pinned buttons, but reversed
+          pinnedButtons.forEach((button, index) => {
+            if (!button.count || button.count <= 0) return;
+            const visualIndex = pinnedButtons.length - 1 - index;
+            const badgeElement = createBadgeElement(button, visualIndex, toolbarRect, true, 'pinned');
+            badges.push(badgeElement);
+          });
+        } else {
+          // Expanded: unpinned first (reversed), then pinned (reversed)
+          pinnedButtons.forEach((button, index) => {
+            if (!button.count || button.count <= 0) return;
+            const visualIndex = unpinnedButtons.length + (pinnedButtons.length - 1 - index);
+            const badgeElement = createBadgeElement(button, visualIndex, toolbarRect, true, 'pinned');
+            badges.push(badgeElement);
+          });
+          
+          if (showExpandedBadges && unpinnedButtons.length > 0) {
+            unpinnedButtons.forEach((button, index) => {
+              if (!button.count || button.count <= 0) return;
+              const visualIndex = unpinnedButtons.length - 1 - index;
+              const badgeElement = createBadgeElement(button, visualIndex, toolbarRect, false, 'unpinned');
+              badges.push(badgeElement);
+            });
+          }
+        }
+      } else {
+        // Vertical bottom: create exact DOM order list and find button positions
+        
+        if (!isExpanded) {
+          // Collapsed: only pinned buttons, visual order should match DOM
+          // Visual order from top to bottom: [settings, mail, ai]
+          pinnedButtons.forEach((button, index) => {
+            if (!button.count || button.count <= 0) return;
+            const badgeElement = createBadgeElement(button, index, toolbarRect, true, 'pinned');
+            badges.push(badgeElement);
+          });
+        } else {
+          // Expanded: create the exact same order as DOM rendering  
+          // Visual order from top to bottom: Help, Like, Docs, Mail, Settings, AI
+          const domOrder = [
+            ...unpinnedButtons,  // Already in correct visual order: Help, Like, Docs, Mail  
+            ...pinnedButtons     // Already in correct visual order: Settings, AI
+          ];
+          
+          // Find buttons with counts and map them to their correct DOM positions
+          const buttonsWithCounts = processedButtons.filter(b => b.count && b.count > 0);
+          
+          buttonsWithCounts.forEach((button) => {
+            // Find the actual DOM index of this button in the domOrder array  
+            const domIndex = domOrder.findIndex(b => b.id === button.id);
+            
+            if (domIndex !== -1) {
+              const isPinned = button.pinned || false;
+              const badgeType = isPinned ? 'pinned' : 'unpinned';
+              
+              // Only show unpinned badges if they're ready to be shown
+              if (!isPinned && !showExpandedBadges) {
+                return; // Skip unpinned badges if not ready
+              }
+              
+              const badgeElement = createBadgeElement(button, domIndex, toolbarRect, isPinned, badgeType);
+              badges.push(badgeElement);
+            }
+          });
+        }
+      }
+    } else {
+      // Normal order: pinned buttons first, then unpinned buttons
+      
+      // Render pinned button badges
+      pinnedButtons.forEach((button, index) => {
+        if (!button.count || button.count <= 0) return;
+        
+        const badgeElement = createBadgeElement(button, index, toolbarRect, true, 'pinned');
+        badges.push(badgeElement);
+      });
+      
+      // Render unpinned button badges when expanded
+      if (isExpanded && showExpandedBadges && unpinnedButtons.length > 0) {
+        unpinnedButtons.forEach((button, index) => {
+          if (!button.count || button.count <= 0) return;
+          
+          const visualIndex = pinnedButtons.length + index;
+          const badgeElement = createBadgeElement(button, visualIndex, toolbarRect, false, 'unpinned');
+          badges.push(badgeElement);
+        });
+      }
+    }
+    
+    return typeof document !== 'undefined' ? createPortal(
+      <>{badges}</>,
+      document.body
+    ) : null;
+  };
+  
+  // Helper function to create a badge element with animation
+  const createBadgeElement = (button: ToolbarButton, visualIndex: number, toolbarRect: DOMRect, isPinned: boolean, badgeType: 'pinned' | 'unpinned') => {
+    // Use existing position detection functions
+    const nearBottom = isNearBottom();
+    const nearRight = isNearRight();
+    
+    // Calculate button position within the toolbar based on toolbar position
+    let badgeX = 0;
+    let badgeY = 0;
+    
+    if (orientation === 'horizontal') {
+      badgeX = toolbarRect.left + (visualIndex * (28 + 6)) + 6 + 14; // button offset + padding + center
+      
+      if (nearBottom) {
+        badgeY = toolbarRect.bottom + 8; // Below the toolbar when toolbar is at bottom
+      } else {
+        badgeY = toolbarRect.top - 8; // Above the toolbar when toolbar is at top
+      }
+    } else {
+      // For vertical orientation
+      if (nearBottom) {
+        // In bottom positions, calculate from bottom to prevent jumping during expansion
+        // Use different calculation for collapsed vs expanded state
+        const totalVisibleButtons = isExpanded ? (pinnedButtons.length + unpinnedButtons.length) : pinnedButtons.length;
+        badgeY = toolbarRect.bottom - ((totalVisibleButtons - 1 - visualIndex) * (28 + 6)) - 7 - 14;
+      } else {
+        // In top positions, calculate from top as usual
+        badgeY = toolbarRect.top + (visualIndex * (28 + 6)) + 7 + 14;
+      }
+      
+      if (nearRight) {
+        badgeX = toolbarRect.left - 12; // Further left to avoid overlapping icon when toolbar is on right
+      } else {
+        badgeX = toolbarRect.right - 4; // Close to the right border of toolbar when toolbar is on left
+      }
+    }
+    
+    return (
+      <div
+        key={`portal-badge-${badgeType}-${button.id}`}
+        style={{
+          position: 'fixed',
+          left: `${badgeX}px`,
+          top: `${badgeY}px`,
+          minWidth: '16px',
+          height: '16px',
+          backgroundColor: appliedTheme.badgeBackgroundColor,
+          color: appliedTheme.badgeTextColor,
+          border: `1px solid ${appliedTheme.badgeBorderColor}`,
+          borderRadius: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '10px',
+          fontWeight: '600',
+          padding: '0 4px',
+          zIndex: 10001,
+          fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+          pointerEvents: 'none',
+          boxSizing: 'border-box',
+          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+          transform: orientation === 'horizontal' ? 'translateX(-50%)' : 'translateY(-50%)', // Center appropriately
+          // Smooth fade-in animation for unpinned badges
+          ...(!isPinned && {
+            animation: 'badgeFadeIn 0.3s ease-out',
+          }),
+        }}
+      >
+        {(button.count ?? 0) > 99 ? '99+' : button.count}
+        
+        {/* Add CSS animation inline */}
+        {!isPinned && (
+          <style>
+            {`
+              @keyframes badgeFadeIn {
+                0% {
+                  opacity: 0;
+                  transform: ${
+                    orientation === 'horizontal'
+                      ? nearBottom
+                        ? 'translateX(-50%) translateY(-4px) scale(0.8)'  // Slide down from above when toolbar is at bottom
+                        : 'translateX(-50%) translateY(4px) scale(0.8)'   // Slide up from below when toolbar is at top
+                      : nearRight
+                        ? 'translateY(-50%) translateX(4px) scale(0.8)'   // Slide in from right when toolbar is on right
+                        : 'translateY(-50%) translateX(-4px) scale(0.8)'  // Slide in from left when toolbar is on left
+                  };
+                }
+                100% {
+                  opacity: 1;
+                  transform: ${orientation === 'horizontal' 
+                    ? 'translateX(-50%) translateY(0) scale(1)' 
+                    : 'translateY(-50%) translateX(0) scale(1)'
+                  };
+                }
+              }
+            `}
+          </style>
+        )}
+      </div>
+    );
+  };
+
   // Render a single button with tooltip
   const renderButton = (button: ToolbarButton, showDivider: boolean, orientation: 'horizontal' | 'vertical') => {
     const tooltipSide = getTooltipSide(position, orientation);
@@ -293,6 +561,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           side={tooltipSide}
           sideOffset={15}
           open={isHovered && hoveredButtonId === button.id && !isDragging}
+          theme={appliedTheme}
         >
           <motion.button
             onClick={() => handleButtonClick(button)}
@@ -308,10 +577,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'white',
+              color: appliedTheme.iconColor,
               borderRadius: '50%',
+              position: 'relative',
             }}
-            whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
+            whileHover={{ backgroundColor: appliedTheme.hoverBackgroundColor }}
           >
             {button.icon}
           </motion.button>
@@ -321,7 +591,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <div
             style={{
               position: 'absolute',
-              backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              backgroundColor: appliedTheme.borderColor,
               ...(orientation === 'vertical'
                 ? {
                     bottom: '-3px',
@@ -366,7 +636,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: 'white',
+          color: appliedTheme.iconColor,
           borderRadius: '50%',
         }}>
           {icon}
@@ -393,6 +663,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           side={tooltipSide}
           sideOffset={15}
           open={isHovered && !isDragging}
+          theme={appliedTheme}
         >
           <motion.button
             onClick={() => buttonToShow && handleButtonClick(buttonToShow)}
@@ -408,10 +679,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'white',
+              color: appliedTheme.iconColor,
               borderRadius: '50%',
+              position: 'relative',
             }}
-            whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
+            whileHover={{ backgroundColor: appliedTheme.hoverBackgroundColor }}
           >
             {icon}
           </motion.button>
@@ -611,6 +883,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
   return (
     <TooltipProvider>
+      {/* Portal badges rendered above toolbar */}
+      {renderPortalBadges()}
       <motion.div
         className={className}
         style={{
@@ -620,7 +894,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           top: 0,
           left: 0,
           zIndex: 10000,
-          overflow: 'visible', // Make overflow visible to allow content to expand outside
+          overflow: 'visible',
         }}
         initial={{}}
         drag
@@ -637,12 +911,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       >
         {/* Inner container for content with animations */}
         <motion.div
+          ref={toolbarRef}
           style={{
-            backgroundColor: 'rgba(0, 0, 0, 0.85)',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
+            backgroundColor: appliedTheme.backgroundColor,
+            boxShadow: appliedTheme.boxShadow,
+            backdropFilter: appliedTheme.backdropFilter,
+            WebkitBackdropFilter: appliedTheme.backdropFilter,
+            border: `1px solid ${appliedTheme.borderColor}`,
             overflow: 'hidden',
             borderRadius: getBorderRadius(),
             transformOrigin: getTransformOrigin(),

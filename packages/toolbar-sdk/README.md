@@ -8,6 +8,8 @@ A customizable floating toolbar SDK for React applications. Create a draggable i
 - 🎯 Snap-to-grid with 9 predefined hotspots
 - 🔄 Automatic orientation switching (horizontal/vertical)
 - 🎨 Customizable actions and icons
+- 🎨 **Full theme customization** with colors, shadows, and effects
+- 🔢 **Count badges** for notifications and status indicators
 - 💾 Persistent position storage
 - 🌟 Smooth animations and transitions
 - 📱 Responsive and draggable interface
@@ -16,6 +18,7 @@ A customizable floating toolbar SDK for React applications. Create a draggable i
 - 📍 Tooltip with directional arrows for better visual connection
 - 🔄 Different animation types for expanding (spring) and collapsing (tween)
 - ⭕ Circular appearance when only one button is visible
+- 🏷️ Smart badge positioning that adapts to toolbar orientation
 
 ## Installation
 
@@ -73,7 +76,7 @@ export function MyComponent() {
 
 ```tsx
 import { Toolbar } from '@betterstacks/toolbar-sdk';
-import { Sparkles, MessageCircle, Settings } from 'lucide-react';
+import { Sparkles, MessageCircle, Settings, Mail } from 'lucide-react';
 
 function App() {
   return (
@@ -87,19 +90,36 @@ function App() {
             onClick: () => console.log('AI clicked'),
           },
           {
+            id: 'mail',
+            icon: <Mail size={16} />,
+            tooltip: 'Mail',
+            onClick: () => console.log('Mail clicked'),
+            count: 27, // Shows notification badge
+          },
+          {
             id: 'chat',
             icon: <MessageCircle size={16} />,
             tooltip: 'Chat',
             onClick: () => console.log('Chat clicked'),
+            count: 102, // Shows as "99+"
           },
           {
             id: 'settings',
             icon: <Settings size={16} />,
             tooltip: 'Settings',
             onClick: () => console.log('Settings clicked'),
+            pinned: true, // Always visible
           },
         ]}
         defaultIcon={<Sparkles size={16} />}
+        theme={{
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          borderColor: 'rgba(0, 0, 0, 0.1)',
+          iconColor: '#333',
+          hoverBackgroundColor: 'rgba(0, 0, 0, 0.05)',
+          badgeBackgroundColor: '#ef4444',
+          badgeTextColor: 'white',
+        }}
       />
     </div>
   );
@@ -115,6 +135,7 @@ function App() {
 | `buttons` | `ToolbarButton[]` | Default actions | Array of button configurations |
 | `defaultIcon` | `ReactNode` | `<Sparkles />` | Icon shown when toolbar is collapsed |
 | `className` | `string` | `''` | Additional CSS classes |
+| `theme` | `ToolbarTheme` | Default theme | Theme customization options |
 
 ### ToolbarButton
 
@@ -125,6 +146,23 @@ function App() {
 | `tooltip` | `string` | Tooltip text shown on hover |
 | `onClick` | `() => void` | Click handler for the button |
 | `pinned` | `boolean` | Whether the button is pinned (visible in collapsed state) |
+| `count` | `number` | Optional count badge (shows "99+" if > 99) |
+
+### ToolbarTheme
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `backgroundColor` | `string` | `'rgba(0, 0, 0, 0.85)'` | Toolbar background color |
+| `borderColor` | `string` | `'rgba(255, 255, 255, 0.15)'` | Toolbar border color |
+| `iconColor` | `string` | `'white'` | Icon color |
+| `hoverBackgroundColor` | `string` | `'rgba(255, 255, 255, 0.1)'` | Button hover background |
+| `tooltipBackgroundColor` | `string` | `'rgba(0, 0, 0, 0.9)'` | Tooltip background color |
+| `tooltipTextColor` | `string` | `'white'` | Tooltip text color |
+| `backdropFilter` | `string` | `'blur(8px)'` | CSS backdrop filter |
+| `boxShadow` | `string` | `'0 2px 8px rgba(0, 0, 0, 0.15)'` | Toolbar shadow |
+| `badgeBackgroundColor` | `string` | `'#ef4444'` | Badge background color |
+| `badgeTextColor` | `string` | `'white'` | Badge text color |
+| `badgeBorderColor` | `string` | `'rgba(255, 255, 255, 0.15)'` | Badge border color |
 
 ## Behavior
 

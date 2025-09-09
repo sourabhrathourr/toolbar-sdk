@@ -12,6 +12,7 @@ export interface ToolbarButton {
   tooltip: string;
   onClick: () => void;
   pinned?: boolean;
+  count?: number;
 }
 
 export interface Position {
@@ -30,8 +31,16 @@ export interface ToolbarConfig {
   orientation?: 'horizontal' | 'vertical';
   theme?: {
     backgroundColor?: string;
-    textColor?: string;
     borderColor?: string;
+    iconColor?: string;
+    hoverBackgroundColor?: string;
+    tooltipBackgroundColor?: string;
+    tooltipTextColor?: string;
+    backdropFilter?: string;
+    boxShadow?: string;
+    badgeBackgroundColor?: string;
+    badgeTextColor?: string;
+    badgeBorderColor?: string;
   };
   buttons?: ToolbarButton[];
   defaultIcon?: ReactNode;

@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.2.0] - 2025-01-09
+### Added
+- **Count Badges**: Added count property to ToolbarButton for displaying notification counts
+- **Theme Customization**: Complete theme customization system with the following options:
+  - `backgroundColor`: Toolbar background color
+  - `borderColor`: Toolbar border color  
+  - `iconColor`: Icon color
+  - `hoverBackgroundColor`: Button hover background color
+  - `tooltipBackgroundColor`: Tooltip background color
+  - `tooltipTextColor`: Tooltip text color
+  - `backdropFilter`: CSS backdrop filter for glassmorphism effects
+  - `boxShadow`: Custom shadow effects
+  - `badgeBackgroundColor`: Badge background color
+  - `badgeTextColor`: Badge text color
+  - `badgeBorderColor`: Badge border color
+- **Badge Features**: Smart badge positioning that adapts to toolbar orientation and position
+- **Enhanced Button API**: Added optional `count` property for notification badges
+
+### Changed
+- Improved badge rendering with portal-based positioning for better z-index control
+- Enhanced toolbar expansion animations to work smoothly with badges
+- Optimized badge positioning calculations for all toolbar orientations
+- Badge counts display as "99+" when count exceeds 99
+
+### Fixed
+- Fixed badge positioning issues in bottom vertical toolbar positions
+- Fixed badge jumping during toolbar expansion animations
+- Fixed badge overlap issues in right vertical positions
+- Resolved badge positioning inconsistencies between collapsed and expanded states
+- Fixed badge timing to appear after toolbar expansion completes
+
 ## [0.1.8] - 2024-07-14
 ### Added
 - Enhanced tooltip behavior with smoother animations and better hover detection
